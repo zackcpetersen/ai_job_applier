@@ -8,7 +8,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import WebDriverException, TimeoutException
-from lib_resume_builder_AIHawk import Resume,StyleManager,FacadeManager,ResumeGenerator
+from lib_resume_builder_AIHawk import Resume, StyleManager, FacadeManager, ResumeGenerator
 from src.utils import chromeBrowserOptions
 from src.gpt import GPTAnswerer
 from src.linkedIn_authenticator import LinkedInAuthenticator
@@ -19,14 +19,16 @@ from src.job_application_profile import JobApplicationProfile
 # Suppress stderr
 sys.stderr = open(os.devnull, 'w')
 
+
 class ConfigError(Exception):
     pass
+
 
 class ConfigValidator:
     @staticmethod
     def validate_email(email: str) -> bool:
         return re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email) is not None
-    
+
     @staticmethod
     def validate_yaml_file(yaml_path: Path) -> dict:
         try:
@@ -36,8 +38,7 @@ class ConfigValidator:
             raise ConfigError(f"Error reading file {yaml_path}: {exc}")
         except FileNotFoundError:
             raise ConfigError(f"File not found: {yaml_path}")
-    
-    
+
     def validate_config(config_yaml_path: Path) -> dict:
         parameters = ConfigValidator.validate_yaml_file(config_yaml_path)
         required_keys = {
@@ -62,7 +63,8 @@ class ConfigValidator:
                 if key in ['companyBlacklist', 'titleBlacklist'] and parameters[key] is None:
                     parameters[key] = []
                 else:
-                    raise ConfigError(f"Invalid type for key '{key}' in config file {config_yaml_path}. Expected {expected_type}.")
+                    raise ConfigError(
+                        f"Invalid type for key '{key}' in config file {config_yaml_path}. Expected {expected_type}.")
 
         experience_levels = ['internship', 'entry', 'associate', 'mid-senior level', 'director', 'executive']
         for level in experience_levels:
@@ -86,7 +88,8 @@ class ConfigValidator:
 
         approved_distances = {0, 5, 10, 25, 50, 100}
         if parameters['distance'] not in approved_distances:
-            raise ConfigError(f"Invalid distance value in config file {config_yaml_path}. Must be one of: {approved_distances}")
+            raise ConfigError(
+                f"Invalid distance value in config file {config_yaml_path}. Must be one of: {approved_distances}")
 
         for blacklist in ['companyBlacklist', 'titleBlacklist']:
             if not isinstance(parameters.get(blacklist), list):
@@ -95,8 +98,6 @@ class ConfigValidator:
                 parameters[blacklist] = []
 
         return parameters
-
-
 
     @staticmethod
     def validate_secrets(secrets_yaml_path: Path) -> tuple:
@@ -116,10 +117,13 @@ class ConfigValidator:
 
         return secrets['email'], str(secrets['password']), secrets['openai_api_key']
 
+
 class FileManager:
     @staticmethod
     def find_file(name_containing: str, with_extension: str, at_path: Path) -> Path:
-        return next((file for file in at_path.iterdir() if name_containing.lower() in file.name.lower() and file.suffix.lower() == with_extension.lower()), None)
+        return next((file for file in at_path.iterdir() if
+                     name_containing.lower() in file.name.lower() and file.suffix.lower() == with_extension.lower()),
+                    None)
 
     @staticmethod
     def validate_data_folder(app_data_folder: Path) -> tuple:
@@ -128,13 +132,15 @@ class FileManager:
 
         required_files = ['secrets.yaml', 'config.yaml', 'plain_text_resume.yaml']
         missing_files = [file for file in required_files if not (app_data_folder / file).exists()]
-        
+
         if missing_files:
             raise FileNotFoundError(f"Missing files in the data folder: {', '.join(missing_files)}")
 
         output_folder = app_data_folder / 'output'
         output_folder.mkdir(exist_ok=True)
-        return (app_data_folder / 'secrets.yaml', app_data_folder / 'config.yaml', app_data_folder / 'plain_text_resume.yaml', output_folder)
+        return (
+        app_data_folder / 'secrets.yaml', app_data_folder / 'config.yaml', app_data_folder / 'plain_text_resume.yaml',
+        output_folder)
 
     @staticmethod
     def file_paths_to_dict(resume_file: Path | None, plain_text_resume_file: Path) -> dict:
@@ -150,6 +156,7 @@ class FileManager:
 
         return result
 
+
 def init_browser() -> webdriver.Chrome:
     try:
         options = chromeBrowserOptions()
@@ -158,6 +165,7 @@ def init_browser() -> webdriver.Chrome:
     except Exception as e:
         raise RuntimeError(f"Failed to initialize browser: {str(e)}")
 
+
 def create_and_run_bot(email: str, password: str, parameters: dict, openai_api_key: str):
     try:
         style_manager = StyleManager()
@@ -165,13 +173,14 @@ def create_and_run_bot(email: str, password: str, parameters: dict, openai_api_k
         with open(parameters['uploads']['plainTextResume'], "r") as file:
             plain_text_resume = file.read()
         resume_object = Resume(plain_text_resume)
-        resume_generator_manager = FacadeManager(openai_api_key, style_manager, resume_generator, resume_object, Path("data_folder/output"))
+        resume_generator_manager = FacadeManager(openai_api_key, style_manager, resume_generator, resume_object,
+                                                 Path("data_folder/output"))
         os.system('cls' if os.name == 'nt' else 'clear')
         resume_generator_manager.choose_style()
         os.system('cls' if os.name == 'nt' else 'clear')
-        
+
         job_application_profile_object = JobApplicationProfile(plain_text_resume)
-        
+
         browser = init_browser()
         login_component = LinkedInAuthenticator(browser)
         apply_component = LinkedInJobManager(browser)
@@ -190,34 +199,44 @@ def create_and_run_bot(email: str, password: str, parameters: dict, openai_api_k
 
 
 @click.command()
-@click.option('--resume', type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path), help="Path to the resume PDF file")
+@click.option('--resume', type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path),
+              help="Path to the resume PDF file")
 def main(resume: Path = None):
     try:
         data_folder = Path("data_folder")
         secrets_file, config_file, plain_text_resume_file, output_folder = FileManager.validate_data_folder(data_folder)
-        
+
         parameters = ConfigValidator.validate_config(config_file)
         email, password, openai_api_key = ConfigValidator.validate_secrets(secrets_file)
-        
+
         parameters['uploads'] = FileManager.file_paths_to_dict(resume, plain_text_resume_file)
         parameters['outputFileDirectory'] = output_folder
-        
+
         create_and_run_bot(email, password, parameters, openai_api_key)
     except ConfigError as ce:
         print(f"Configuration error: {str(ce)}")
-        print("Refer to the configuration guide for troubleshooting: https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        print(
+            "Refer to the configuration guide for troubleshooting: "
+            "https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
     except FileNotFoundError as fnf:
         print(f"File not found: {str(fnf)}")
         print("Ensure all required files are present in the data folder.")
-        print("Refer to the file setup guide: https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        print(
+            "Refer to the file setup guide: https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application"
+            "/blob/main/readme.md#configuration")
     except RuntimeError as re:
 
         print(f"Runtime error: {str(re)}")
 
-        print("Refer to the configuration and troubleshooting guide: https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        print(
+            "Refer to the configuration and troubleshooting guide: "
+            "https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
     except Exception as e:
         print(f"An unexpected error occurred: {str(e)}")
-        print("Refer to the general troubleshooting guide: https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        print(
+            "Refer to the general troubleshooting guide: "
+            "https://github.com/feder-cr/LinkedIn_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+
 
 if __name__ == "__main__":
     main()
